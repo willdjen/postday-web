@@ -1,0 +1,408 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+enum UserRole {
+  USER
+  ADMIN
+  OWNER
+}
+
+enum WorkspaceRole {
+  OWNER
+  ADMIN
+  MEMBER
+}
+
+enum InviteStatus {
+  PENDING
+  ACCEPTED
+  DECLINED
+}
+
+enum SocialPlatform {
+  INSTAGRAM
+  FACEBOOK
+  LINKEDIN
+  TIKTOK
+  X
+  YOUTUBE
+}
+
+enum PostStatus {
+  DRAFT
+  SCHEDULED
+  PUBLISHED
+  FAILED
+  ARCHIVED
+}
+
+enum PostType {
+  TEXT
+  IMAGE
+  VIDEO
+  CAROUSEL
+  REEL
+}
+
+enum MediaType {
+  IMAGE
+  VIDEO
+  CAROUSEL
+  DOCUMENT
+}
+
+enum Plan {
+  FREE
+  STARTER
+  PRO
+  ENTERPRISE
+}
+
+enum SubscriptionStatus {
+  TRIALING
+  ACTIVE
+  PAST_DUE
+  CANCELED
+  EXPIRED
+}
+
+enum InvoiceStatus {
+  DRAFT
+  OPEN
+  PAID
+  VOID
+  UNCOLLECTIBLE
+}
+
+model User {
+  id            String    @id @default(cuid())
+  name          String?
+  email         String    @unique
+  emailVerified DateTime?
+  image         String?
+  password      String?
+  role          UserRole  @default(USER)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  accounts       Account[]
+  sessions       Session[]
+  onboarding     Onboarding?
+  ownedWorkspaces Workspace[]       @relation("WorkspaceOwner")
+  workspaceMembers WorkspaceMember[]
+  posts          Post[]
+  drafts         Draft[]
+}
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String?
+  access_token      String?
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String?
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
+
+model Onboarding {
+  id         String   @id @default(cuid())
+  userId     String   @unique
+  role       String?
+  jobTitle   String?
+  hearAboutUs String[] @default([])
+  linkedinUrl String?
+  isComplete Boolean  @default(false)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model Workspace {
+  id          String   @id @default(cuid())
+  name        String
+  slug        String   @unique @default(cuid())
+  ownerId     String
+  description String?
+  logoUrl     String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  owner          User              @relation("WorkspaceOwner", fields: [ownerId], references: [id], onDelete: Cascade)
+  members        WorkspaceMember[]
+  socialAccounts SocialAccount[]
+  posts          Post[]
+  drafts         Draft[]
+  mediaAssets    MediaAsset[]
+  analytics      Analytics[]
+  aiSettings     AISettings?
+  brandKits      BrandKit[]
+  writingStyles  WritingStyle[]
+  autoPlugs      AutoPlug[]
+  customCTAs     CustomCTA[]
+  subscription   Subscription?
+  invoices       Invoice[]
+}
+
+model WorkspaceMember {
+  id           String        @id @default(cuid())
+  workspaceId  String
+  userId       String
+  role         WorkspaceRole @default(MEMBER)
+  status       InviteStatus  @default(ACCEPTED)
+  joinedAt     DateTime      @default(now())
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([workspaceId, userId])
+}
+
+model SocialAccount {
+  id               String         @id @default(cuid())
+  workspaceId      String
+  platform         SocialPlatform
+  accountId        String
+  accountName      String
+  accountHandle    String?
+  profileImageUrl  String?
+  accessToken      String
+  refreshToken     String?
+  tokenExpiresAt   DateTime?
+  isActive         Boolean        @default(true)
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@unique([workspaceId, platform, accountId])
+}
+
+model Post {
+  id               String         @id @default(cuid())
+  workspaceId      String
+  authorId         String
+  title            String?
+  content          String         @db.Text
+  caption          String?        @db.Text
+  platform         SocialPlatform
+  type             PostType       @default(TEXT)
+  status           PostStatus     @default(DRAFT)
+  scheduledAt      DateTime?
+  publishedAt      DateTime?
+  failedReason     String?
+  isAIGenerated    Boolean        @default(false)
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
+
+  workspace   Workspace    @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  author      User         @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  mediaAssets MediaAsset[]
+  analytics   Analytics[]
+}
+
+model Draft {
+  id            String    @id @default(cuid())
+  workspaceId   String
+  authorId      String
+  title         String?
+  content       String    @db.Text
+  caption       String?   @db.Text
+  platform      SocialPlatform
+  type          PostType  @default(TEXT)
+  lastSavedAt   DateTime  @default(now())
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  workspace   Workspace    @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  author      User         @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  mediaAssets MediaAsset[]
+}
+
+model MediaAsset {
+  id            String    @id @default(cuid())
+  workspaceId   String
+  postId        String?
+  draftId       String?
+  type          MediaType
+  url           String
+  publicId      String?
+  mimeType      String?
+  sizeInBytes   Int?
+  width         Int?
+  height        Int?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  post      Post?     @relation(fields: [postId], references: [id], onDelete: Cascade)
+  draft     Draft?    @relation(fields: [draftId], references: [id], onDelete: Cascade)
+}
+
+model Analytics {
+  id              String    @id @default(cuid())
+  workspaceId     String
+  postId          String?
+  platform        SocialPlatform
+  likes           Int       @default(0)
+  comments        Int       @default(0)
+  shares          Int       @default(0)
+  impressions     Int       @default(0)
+  reach           Int       @default(0)
+  engagementRate  Float     @default(0)
+  capturedAt      DateTime  @default(now())
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  post      Post?     @relation(fields: [postId], references: [id], onDelete: SetNull)
+}
+
+model AISettings {
+  id                    String   @id @default(cuid())
+  workspaceId           String   @unique
+  defaultLanguage       String   @default("id")
+  topics                String[] @default([])
+  language              String   @default("id")
+  defaultTone           String   @default("profesional")
+  profileDescription    String?  @db.Text
+  autoPostEnabled       Boolean  @default(false)
+  enableIdeaGenerator   Boolean  @default(true)
+  enableAutoPilot       Boolean  @default(true)
+  enableAutoPlug        Boolean  @default(true)
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+}
+
+model BrandKit {
+  id            String   @id @default(cuid())
+  workspaceId   String
+  name          String
+  primaryColor  String
+  secondaryColor String?
+  accentColor   String?
+  logoUrl       String?
+  fontHeading   String?
+  fontBody      String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+}
+
+model WritingStyle {
+  id              String   @id @default(cuid())
+  workspaceId     String
+  name            String
+  description     String?
+  tone            String
+  keywords        String[]
+  toneOfVoice     String[] @default([])
+  targetAudience  String[] @default([])
+  contentType     String[] @default([])
+  personas        String[] @default([])
+  isDefault       Boolean  @default(false)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+}
+
+model AutoPlug {
+  id                  String   @id @default(cuid())
+  workspaceId         String
+  isEnabled           Boolean  @default(false)
+  triggerKeywords     String[]
+  ctaTemplate         String?
+  comment             String?  @db.Text
+  delayAmount         Int      @default(30)
+  delayUnit           String   @default("Menit")
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+}
+
+model CustomCTA {
+  id            String   @id @default(cuid())
+  workspaceId   String
+  label         String
+  url           String?
+  isEnabled     Boolean  @default(false)
+  isDefault     Boolean  @default(false)
+  finishers     String[] @default([])
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+}
+
+model Subscription {
+  id                 String             @id @default(cuid())
+  workspaceId        String             @unique
+  plan               Plan               @default(FREE)
+  status             SubscriptionStatus @default(ACTIVE)
+  currentPeriodStart DateTime           @default(now())
+  currentPeriodEnd   DateTime?
+  cancelAtPeriodEnd  Boolean            @default(false)
+  createdAt          DateTime           @default(now())
+  updatedAt          DateTime           @updatedAt
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  invoices  Invoice[]
+}
+
+model Invoice {
+  id              String        @id @default(cuid())
+  workspaceId     String
+  subscriptionId  String
+  number          String        @unique
+  amount          Int
+  currency        String        @default("IDR")
+  status          InvoiceStatus @default(DRAFT)
+  issuedAt        DateTime      @default(now())
+  dueAt           DateTime?
+  paidAt          DateTime?
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  workspace    Workspace    @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  subscription Subscription @relation(fields: [subscriptionId], references: [id], onDelete: Cascade)
+}

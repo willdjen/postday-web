@@ -1,0 +1,18 @@
+{
+  "extends": "next/core-web-vitals",
+  "rules": {
+    "react/display-name": "warn",
+    "react/no-unescaped-entities": "warn",
+    "@next/next/no-html-link-for-pages": "off",
+    "@next/next/no-img-element": "warn",
+    "no-console": [
+      "warn",
+      {
+        "allow": [
+          "warn",
+          "error"
+        ]
+      }
+    ]
+  }
+}

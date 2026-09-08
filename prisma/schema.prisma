@@ -226,6 +226,8 @@ model Post {
   scheduledAt      DateTime?
   publishedAt      DateTime?
   failedReason     String?
+  platformPostId   String?
+  errorMessage     String?        @db.Text
   isAIGenerated    Boolean        @default(false)
   createdAt        DateTime       @default(now())
   updatedAt        DateTime       @updatedAt

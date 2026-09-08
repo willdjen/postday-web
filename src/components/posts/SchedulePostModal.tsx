@@ -1,7 +1,7 @@
 'use client';
 
-import { useState } from 'react';
-import { X, CalendarClock, Save, Loader2 } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { X, CalendarClock, Save, Loader2, Linkedin, Link } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 interface Props {
@@ -10,35 +10,65 @@ interface Props {
   onClose: () => void;
 }
 
-const PLATFORMS = [
-  { key: 'linkedin', label: 'LinkedIn', available: true },
-  { key: 'instagram', label: 'Instagram', available: false },
-  { key: 'facebook', label: 'Facebook', available: false },
-];
+interface ConnectedAccount {
+  id: string;
+  platform: string;
+  accountName: string;
+  accountHandle?: string;
+  isActive: boolean;
+  tokenExpiresAt?: string | null;
+}
+
+function PlatformIcon({ platform }: { platform: string }) {
+  if (platform === 'LINKEDIN') return <Linkedin className="h-4 w-4 text-blue-600" />;
+  return <Link className="h-4 w-4 text-gray-400" />;
+}
 
 export default function SchedulePostModal({ content, hashtags, onClose }: Props) {
   const [date, setDate] = useState('');
   const [time, setTime] = useState('09:00');
-  const [platforms, setPlatforms] = useState<string[]>(['linkedin']);
+  const [selectedAccountId, setSelectedAccountId] = useState('');
   const [scheduling, setScheduling] = useState(false);
   const [savingDraft, setSavingDraft] = useState(false);
   const [success, setSuccess] = useState('');
   const [error, setError] = useState('');
+  const [accounts, setAccounts] = useState<ConnectedAccount[]>([]);
+  const [loadingAccounts, setLoadingAccounts] = useState(true);
 
   const today = new Date().toISOString().split('T')[0];
 
-  function togglePlatform(key: string) {
-    setPlatforms(p => p.includes(key) ? p.filter(x => x !== key) : [...p, key]);
-  }
+  useEffect(() => {
+    async function fetchAccounts() {
+      try {
+        const res = await fetch('/api/social-accounts');
+        if (res.ok) {
+          const data: ConnectedAccount[] = await res.json();
+          // Only show active, non-expired accounts
+          const active = data.filter(a => {
+            if (!a.isActive) return false;
+            if (a.tokenExpiresAt && new Date(a.tokenExpiresAt) < new Date()) return false;
+            return true;
+          });
+          setAccounts(active);
+          if (active.length > 0) setSelectedAccountId(active[0].id);
+        }
+      } finally {
+        setLoadingAccounts(false);
+      }
+    }
+    fetchAccounts();
+  }, []);
 
   async function handleSchedule() {
     if (!date) { setError('Pilih tanggal terlebih dahulu'); return; }
+    if (!selectedAccountId && accounts.length > 0) { setError('Pilih akun sosial'); return; }
     setScheduling(true); setError('');
     try {
       const scheduledAt = new Date(`${date}T${time}:00`).toISOString();
       const res = await fetch('/api/posts/schedule', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ content, hashtags, scheduledAt }),
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ content, hashtags, scheduledAt, socialAccountId: selectedAccountId }),
       });
       if (res.ok) {
         setSuccess('Post berhasil dijadwalkan! 🎉');
@@ -54,7 +84,8 @@ export default function SchedulePostModal({ content, hashtags, onClose }: Props)
     setSavingDraft(true); setError('');
     try {
       const res = await fetch('/api/posts/drafts', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ content, hashtags }),
       });
       if (res.ok) {
@@ -82,7 +113,7 @@ export default function SchedulePostModal({ content, hashtags, onClose }: Props)
             <p className="text-lg font-semibold text-gray-900">{success}</p>
           </div>
         ) : (
-          <div className="space-y-5 max-h-[60vh] overflow-y-auto pr-1">
+          <div className="space-y-5 max-h-[65vh] overflow-y-auto pr-1">
             {/* Preview */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1.5">Preview Konten</label>
@@ -97,22 +128,50 @@ export default function SchedulePostModal({ content, hashtags, onClose }: Props)
               )}
             </div>
 
-            {/* Platform */}
+            {/* Connected Accounts */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Platform</label>
-              <div className="flex flex-wrap gap-2">
-                {PLATFORMS.map(p => (
-                  <button key={p.key} onClick={() => p.available && togglePlatform(p.key)}
-                    disabled={!p.available}
-                    className={cn('rounded-lg border px-4 py-2 text-sm font-medium transition-all',
-                      !p.available ? 'border-gray-100 bg-gray-50 text-gray-300 cursor-not-allowed'
-                        : platforms.includes(p.key) ? 'border-orange-400 bg-orange-50 text-orange-700'
-                        : 'border-gray-200 bg-white text-gray-600 hover:border-gray-300')}>
-                    {p.label}
-                    {!p.available && <span className="ml-1 text-[10px]">(Segera Hadir)</span>}
-                  </button>
-                ))}
-              </div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Akun Sosial</label>
+              {loadingAccounts ? (
+                <div className="flex items-center gap-2 text-sm text-gray-400">
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  Memuat akun...
+                </div>
+              ) : accounts.length === 0 ? (
+                <div className="rounded-lg border border-dashed border-gray-300 bg-gray-50 p-4 text-center">
+                  <p className="text-sm text-gray-500">Belum ada akun sosial yang terhubung.</p>
+                  <a href="/settings?tab=linkedin" className="mt-2 inline-block text-xs font-semibold text-orange-600 hover:underline">
+                    Hubungkan akun di Settings →
+                  </a>
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {accounts.map(acc => (
+                    <label
+                      key={acc.id}
+                      className={cn(
+                        'flex cursor-pointer items-center gap-3 rounded-lg border px-4 py-3 transition-all',
+                        selectedAccountId === acc.id
+                          ? 'border-orange-400 bg-orange-50'
+                          : 'border-gray-200 bg-white hover:border-gray-300'
+                      )}
+                    >
+                      <input
+                        type="radio"
+                        name="socialAccount"
+                        value={acc.id}
+                        checked={selectedAccountId === acc.id}
+                        onChange={() => setSelectedAccountId(acc.id)}
+                        className="accent-orange-500"
+                      />
+                      <PlatformIcon platform={acc.platform} />
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium text-gray-900 truncate">{acc.accountName}</p>
+                        <p className="text-xs text-gray-500">{acc.accountHandle ?? acc.platform}</p>
+                      </div>
+                    </label>
+                  ))}
+                </div>
+              )}
             </div>
 
             {/* Date & Time */}
@@ -133,13 +192,19 @@ export default function SchedulePostModal({ content, hashtags, onClose }: Props)
 
             {/* Buttons */}
             <div className="flex gap-3 pt-2">
-              <button onClick={handleSchedule} disabled={scheduling || savingDraft}
-                className="flex-1 inline-flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-[#FF5722] to-[#FF9800] py-3 text-sm font-semibold text-white shadow-md shadow-orange-200 hover:shadow-lg disabled:opacity-50">
+              <button
+                onClick={handleSchedule}
+                disabled={scheduling || savingDraft || (accounts.length > 0 && !selectedAccountId)}
+                className="flex-1 inline-flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-[#FF5722] to-[#FF9800] py-3 text-sm font-semibold text-white shadow-md shadow-orange-200 hover:shadow-lg disabled:opacity-50"
+              >
                 {scheduling ? <Loader2 className="h-4 w-4 animate-spin" /> : <CalendarClock className="h-4 w-4" />}
                 {scheduling ? 'Menjadwalkan...' : 'JADWALKAN'}
               </button>
-              <button onClick={handleSaveDraft} disabled={scheduling || savingDraft}
-                className="inline-flex items-center justify-center gap-2 rounded-xl border border-gray-200 bg-white px-5 py-3 text-sm font-semibold text-gray-700 hover:bg-gray-50 disabled:opacity-50">
+              <button
+                onClick={handleSaveDraft}
+                disabled={scheduling || savingDraft}
+                className="inline-flex items-center justify-center gap-2 rounded-xl border border-gray-200 bg-white px-5 py-3 text-sm font-semibold text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+              >
                 {savingDraft ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
                 SIMPAN DRAF
               </button>

@@ -4,10 +4,10 @@ import { useState, useMemo } from 'react';
 import {
   startOfWeek, endOfWeek, startOfMonth, endOfMonth,
   eachDayOfInterval, format, isSameDay, addWeeks, subWeeks,
-  addMonths, subMonths, getDay,
+  addMonths, subMonths,
 } from 'date-fns';
 import { id as idLocale } from 'date-fns/locale';
-import { ChevronLeft, ChevronRight, Check, Pencil } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Check, Pencil, Loader2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 interface PostData {
@@ -46,9 +46,37 @@ function statusBadge(status: string) {
   }
 }
 
-export default function CalendarView({ posts, workspaceId }: Props) {
+export default function CalendarView({ posts: initialPosts, workspaceId }: Props) {
   const [view, setView] = useState<'week' | 'month'>('week');
   const [currentDate, setCurrentDate] = useState(new Date());
+  const [posts, setPosts] = useState<PostData[]>(initialPosts);
+  const [publishing, setPublishing] = useState<string | null>(null);
+  const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
+
+  function showToast(message: string, type: 'success' | 'error') {
+    setToast({ message, type });
+    setTimeout(() => setToast(null), 3500);
+  }
+
+  async function handlePublish(postId: string) {
+    setPublishing(postId);
+    try {
+      const res = await fetch('/api/posts/publish', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ postId }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setPosts(prev => prev.map(p => p.id === postId ? { ...p, status: 'PUBLISHED' } : p));
+        showToast('Post berhasil dipublish ke LinkedIn! 🎉', 'success');
+      } else {
+        showToast(data.error ?? 'Gagal publish post', 'error');
+      }
+    } finally {
+      setPublishing(null);
+    }
+  }
 
   function navigate(dir: 'prev' | 'next') {
     if (view === 'week') {
@@ -89,6 +117,16 @@ export default function CalendarView({ posts, workspaceId }: Props) {
 
   return (
     <div className="space-y-6">
+      {/* Toast */}
+      {toast && (
+        <div className={cn(
+          'fixed bottom-6 right-6 z-50 rounded-xl px-5 py-3 text-sm font-semibold text-white shadow-lg transition-all animate-in slide-in-from-bottom-2',
+          toast.type === 'success' ? 'bg-green-600' : 'bg-red-600'
+        )}>
+          {toast.message}
+        </div>
+      )}
+
       {/* Header */}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
@@ -135,32 +173,46 @@ export default function CalendarView({ posts, workspaceId }: Props) {
                 </div>
                 {/* Posts */}
                 <div className="space-y-2">
-                  {dayPosts.map(post => (
-                    <div key={post.id} className="rounded-lg border border-gray-100 bg-gray-50 p-2 transition-colors hover:bg-gray-100">
-                      <div className="flex items-center gap-1.5 mb-1">
-                        <span className={cn('h-2 w-2 rounded-full', statusColor(post.status))} />
-                        <span className={cn('rounded px-1.5 py-0.5 text-[10px] font-semibold', statusBadge(post.status))}>
-                          {post.status}
-                        </span>
-                      </div>
-                      <p className="text-xs text-gray-700 line-clamp-2">
-                        {post.content.substring(0, 40)}{post.content.length > 40 ? '...' : ''}
-                      </p>
-                      {post.scheduledAt && (
-                        <p className="mt-1 text-[10px] text-gray-400">
-                          {format(new Date(post.scheduledAt), 'HH:mm')}
+                  {dayPosts.map(post => {
+                    const isPublishing = publishing === post.id;
+                    const canPublish = post.status === 'SCHEDULED' || post.status === 'DRAFT';
+                    return (
+                      <div key={post.id} className="rounded-lg border border-gray-100 bg-gray-50 p-2 transition-colors hover:bg-gray-100">
+                        <div className="flex items-center gap-1.5 mb-1">
+                          <span className={cn('h-2 w-2 rounded-full', statusColor(post.status))} />
+                          <span className={cn('rounded px-1.5 py-0.5 text-[10px] font-semibold', statusBadge(post.status))}>
+                            {post.status}
+                          </span>
+                        </div>
+                        <p className="text-xs text-gray-700 line-clamp-2">
+                          {post.content.substring(0, 40)}{post.content.length > 40 ? '...' : ''}
                         </p>
-                      )}
-                      <div className="mt-1.5 flex gap-1">
-                        <button className="rounded bg-gradient-to-r from-[#FF5722] to-[#FF9800] px-2 py-0.5 text-[10px] font-semibold text-white">
-                          <Check className="h-3 w-3 inline mr-0.5" />SETUJUI
-                        </button>
-                        <button className="rounded border border-gray-200 bg-white px-2 py-0.5 text-[10px] font-medium text-gray-600">
-                          <Pencil className="h-3 w-3 inline mr-0.5" />EDIT
-                        </button>
+                        {post.scheduledAt && (
+                          <p className="mt-1 text-[10px] text-gray-400">
+                            {format(new Date(post.scheduledAt), 'HH:mm')}
+                          </p>
+                        )}
+                        <div className="mt-1.5 flex gap-1">
+                          {canPublish && (
+                            <button
+                              onClick={() => handlePublish(post.id)}
+                              disabled={isPublishing}
+                              className="inline-flex items-center gap-0.5 rounded bg-gradient-to-r from-[#FF5722] to-[#FF9800] px-2 py-0.5 text-[10px] font-semibold text-white disabled:opacity-60"
+                            >
+                              {isPublishing
+                                ? <Loader2 className="h-3 w-3 animate-spin" />
+                                : <Check className="h-3 w-3" />
+                              }
+                              {isPublishing ? '...' : 'SETUJUI'}
+                            </button>
+                          )}
+                          <button className="rounded border border-gray-200 bg-white px-2 py-0.5 text-[10px] font-medium text-gray-600">
+                            <Pencil className="h-3 w-3 inline mr-0.5" />EDIT
+                          </button>
+                        </div>
                       </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                   {dayPosts.length === 0 && (
                     <p className="text-center text-[10px] text-gray-300 pt-4">Tidak ada post</p>
                   )}

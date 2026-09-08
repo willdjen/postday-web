@@ -49,14 +49,14 @@ export default function Sidebar() {
             className="flex w-10 shrink-0 items-center justify-center hover:opacity-80 transition-opacity outline-none"
             title={isCollapsed ? "Expand sidebar" : "Collapse sidebar"}
           >
-            <Image src="/postday-icon.svg" alt="Postday" width={40} height={40} className="h-10 w-10 object-contain" />
+            <Image src="/postday-icon.svg" alt="Postday" width={32} height={32} className="h-8 w-8 object-contain" />
           </button>
 
           <div className={cn(
             "flex items-center justify-between transition-all duration-300 ease-in-out overflow-hidden",
             isCollapsed ? "w-0 opacity-0" : "w-full opacity-100"
           )}>
-            <Image src="/postday-typography.png" alt="Postday" width={180} height={40} className="h-8 w-auto object-contain ml-2 shrink-0" />
+            <Image src="/postday-typography.png" alt="Postday" width={140} height={32} className="h-6 w-auto object-contain ml-2 shrink-0" />
             <button
               onClick={() => setIsCollapsed(true)}
               className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-neutral-500 hover:bg-neutral-100 hover:text-neutral-900 transition-colors"

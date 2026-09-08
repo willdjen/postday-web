@@ -116,10 +116,12 @@ export default function GeneralTab({ workspaceId }: { workspaceId: string }) {
             <ExternalLink className="h-4 w-4" />
             CREATE LINK
           </button>
-          <button className="inline-flex items-center gap-2 rounded-lg bg-gradient-to-r from-[#FF5722] to-[#FF9800] px-4 py-2.5 text-sm font-semibold text-white shadow-md shadow-orange-200 transition-all hover:shadow-lg hover:shadow-orange-300">
-            <UserPlus className="h-4 w-4" />
-            TAMBAH AKUN
-          </button>
+          <a href="/api/social/linkedin/connect">
+            <button className="inline-flex items-center gap-2 rounded-lg bg-gradient-to-r from-[#FF5722] to-[#FF9800] px-4 py-2.5 text-sm font-semibold text-white shadow-md shadow-orange-200 transition-all hover:shadow-lg hover:shadow-orange-300">
+              <UserPlus className="h-4 w-4" />
+              TAMBAH AKUN
+            </button>
+          </a>
         </div>
 
         {/* Accounts list */}
